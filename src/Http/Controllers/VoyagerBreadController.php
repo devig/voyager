@@ -227,6 +227,33 @@ class VoyagerBreadController extends Controller
         // Validate fields with ajax
         $val = $this->validateBread($request->all(), $dataType->editRows);
 
+        // handle with pivot relationships
+        foreach ($dataType->addRows as $row) {
+            if ($row->type === "relationship") {
+                $details = json_decode($row->details);
+                $extraOptionsDecoded = json_decode($details->extra_options);
+
+                if ($extraOptionsDecoded !== null && (is_array($extraOptionsDecoded) || is_object($extraOptionsDecoded))) {
+                    if ($request->get($row->field . '_ids') !== null) {
+                        $relations = [];
+
+                        foreach ($request->get($row->field . '_ids') as $key => $relation) {
+                            $relations[$relation] = [];
+                            foreach ($extraOptionsDecoded->with_pivot as $eOptions) {
+                                $relations[$relation][$eOptions->column] =
+                                    $request->get($row->field . '_' . $eOptions->column . '_values')[$key];
+                            }
+                        }
+
+
+                        $request->request->add([$row->field => $relations]);
+                    } else {
+                        $request->request->add([$row->field => []]);
+                    }
+                }
+            }
+        }
+
         if ($val->fails()) {
             return response()->json(['errors' => $val->messages()]);
         }
@@ -309,6 +336,33 @@ class VoyagerBreadController extends Controller
 
         // Validate fields with ajax
         $val = $this->validateBread($request->all(), $dataType->addRows);
+
+        // handle with pivot relationships
+        foreach ($dataType->addRows as $row) {
+            if ($row->type === "relationship") {
+                $details = json_decode($row->details);
+                $extraOptionsDecoded = json_decode($details->extra_options);
+
+                if ($extraOptionsDecoded !== null && (is_array($extraOptionsDecoded) || is_object($extraOptionsDecoded))) {
+                    if ($request->get($row->field . '_ids') !== null) {
+                        $relations = [];
+
+                        foreach ($request->get($row->field . '_ids') as $key => $relation) {
+                            $relations[$relation] = [];
+                            foreach ($extraOptionsDecoded->with_pivot as $eOptions) {
+                                $relations[$relation][$eOptions->column] =
+                                    $request->get($row->field . '_' . $eOptions->column . '_values')[$key];
+                            }
+                        }
+
+
+                        $request->request->add([$row->field => $relations]);
+                    } else {
+                        $request->request->add([$row->field => []]);
+                    }
+                }
+            }
+        }
 
         if ($val->fails()) {
             return response()->json(['errors' => $val->messages()]);
