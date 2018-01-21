@@ -1,0 +1,24 @@
+{
+  "with_pivot": [
+    {
+      "column": "value",
+      "column_type": "string",
+      "field": {
+        "type": "dropdown",
+        "default": "1",
+        "options": {
+          "1": "hello",
+          "2": "testing"
+        }
+      }
+    },
+    {
+      "column": "attribute_id",
+      "column_type": "relationship",
+      "field": {
+        "type": "dropdown",
+        "model": "App\\Attribute"
+      }
+    }
+  ]
+}
