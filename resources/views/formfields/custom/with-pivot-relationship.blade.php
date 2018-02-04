@@ -1,75 +1,79 @@
 @if(isset($options->model) && isset($options->type))
     @if(class_exists($options->model))
         @php
+        // Relationship Name
         $relationshipField = $row->field;
 
+        // All relationship options
+        $relationshipOptions = app($options->model)->all();
+
+        // Get Local IDs
+        $localIds = $relationshipOptions->pluck('id')->toArray();
+
+        // Get Foreign Key
+        $foreignKey = strtolower((new \ReflectionClass($relationshipOptions->first()))->getShortName()) . '_id';
+
+        // Extra Options
         $extraOptions = json_decode($options->extra_options);
 
+        // Pivot Columns
         $columns = [];
 
-        foreach ($extraOptions->with_pivot as $option) {
+        foreach ($extraOptions->with_pivot as &$option) {
+            // Get pivot related data where necessary
+            if (isset($option->pivot_field_type) && $option->pivot_field_type == "dropdown" && isset($option->pivot_model)) {
+                if (class_exists($option->pivot_model)) {
+                    $model = '\\' . $option->pivot_model;
+                    $option->data = $model::whereIn($foreignKey, $localIds)->pluck($option->pivot_label, 'id');
+                }
+            }
+
+            // Pivot Columns
             $columns[] = $option->column;
         }
 
+        // Get relationships
         $relations = isset($dataTypeContent) ? $dataTypeContent->belongsToMany($options->model, $options->pivot_table)
-                                                                ->withPivot(implode(", ", $columns))
+                                                                ->withPivot($columns)
                                                                 ->getResults()->toArray() : array();
 
+        // Already linked IDs
         $relatedIds = [];
-
         foreach ($relations as $relation) {
             $relatedIds[] = $relation['id'];
         }
-
-        $relationshipOptions = app($options->model)->all();
-
-        $localIds = $relationshipOptions->pluck('id')->toArray();
-        $foreignKey = strtolower((new \ReflectionClass($relationshipOptions->first()))->getShortName()) . '_id';
         @endphp
 
-        @foreach ($extraOptions->with_pivot as $option)
-            {{-- Check if there's a pivot model --}}
-            @if (isset($option->pivot_field_type) && $option->pivot_field_type == "dropdown" && isset($option->pivot_model))
-                <?php
-                    if (class_exists($option->pivot_model)) {
-                        $model = '\\' . $option->pivot_model;
-                        $option->data = $model::whereIn($foreignKey, $localIds)->pluck($option->pivot_label, 'id');
-                    }
-                ?>
-            @endif
-            <select class="form-control select-relationship-with-pivot"
-                    data-relationship-field="{{ $relationshipField }}"
-                    data-pivot-column="{{ $option->column }}"
-                    data-pivot-field-type="{{ $option->pivot_field_type }}">
-                @foreach ($relationshipOptions as $relationshipOption)
-                    <option value="{{ $relationshipOption->id }}" style="{{ in_array($relationshipOption->id, $relatedIds) ? "display: none;" : "" }}">{{ $relationshipOption->{$options->label} }}</option>
-                @endforeach
-            </select>
+        <select class="form-control select-relationship-with-pivot" data-relationship-field="{{ $relationshipField }}">
+            @foreach ($relationshipOptions as $relationshipOption)
+                <option value="{{ $relationshipOption->id }}" style="{{ in_array($relationshipOption->id, $relatedIds) ? "display: none;" : "" }}">{{ $relationshipOption->{$options->label} }}</option>
+            @endforeach
+        </select>
 
-            <div class="selected-relationship-with-pivot-container">
-                @foreach ($relations as $relation)
-                    <div class="selected-relationship" data-relationship-value="{{ $relation['id'] }}">
-                        <span>{{ $relation[$options->label] }}</span>
-
-                        @if (isset($option->pivot_field_type) && $option->pivot_field_type == "string")
-                            <input type="text" value="{{ $relation['id'] }}" name="{{ $relationshipField . '_ids[]' }}" hidden>
-                            <input value="{{ $relation['pivot'][$option->column] }}" class="form-control with-pivot-relationship-value" name="{{ $relationshipField . '_' . $option->column . '_values[]' }}" type="text" placeholder="Column Value">
-                        @elseif (isset($option->pivot_field_type) && $option->pivot_field_type == "dropdown")
-                            @if (isset($option->data))
-                                <label class='pivot-name'>{{ $option->pivot_name }}</label>;
-                                <select class='form-control with-pivot-relationship-value' name='{{ $relationshipField }}_{{$option->column}}_values[]'>;
-                                @foreach ($option->data as $key => $selectOption)
-                                    <option value='{{ $key }}' {{ $relation['pivot'][$option->column] == $key ? 'selected' : '' }}>{{$selectOption}}</option>
+        <div class="selected-relationship-with-pivot-container" data-relationship-field="{{ $relationshipField }}">
+            @foreach ($relations as $relation)
+                <div class="selected-relationship" data-relationship-value="{{ $relation['id'] }}">
+                    <span>{{ $relation[$options->label] }}</span>
+                    <input type="text" value="{{ $relation['id'] }}" name="{{ $relationshipField . '_ids[]' }}" hidden>
+                    @foreach ($extraOptions->with_pivot as $relationOption)
+                        @if (isset($relationOption->pivot_field_type) && $relationOption->pivot_field_type == "text")
+                            <input value="{{ $relation['pivot'][$relationOption->column] }}" class="form-control with-pivot-relationship-value" name="{{ $relationshipField . '_' . $relationOption->column . '_values[]' }}" type="text" placeholder="{{ $relationOption->column }} Value">
+                        @elseif (isset($relationOption->pivot_field_type) && $relationOption->pivot_field_type == "dropdown")
+                            @if (isset($relationOption->data))
+                                <label class='pivot-name'>{{ $relationOption->pivot_name }}</label>
+                                <select class='form-control with-pivot-relationship-value' name='{{ $relationshipField }}_{{$relationOption->column}}_values[]'>;
+                                @foreach ($relationOption->data as $key => $selectOption)
+                                    <option value='{{ $key }}' {{ $relation['pivot'][$relationOption->column] == $key ? 'selected' : '' }}>{{$selectOption}}</option>
                                 @endforeach
                                 </select>
                             @endif
                         @endif
+                    @endforeach
 
-                        <span class="remove-relationship">Remove</span>
-                    </div>
-                @endforeach
-            </div>
-        @endforeach
+                    <span class="remove-relationship">Remove</span>
+                </div>
+            @endforeach
+        </div>
     @else
         cannot make relationship because {{ $options->model }} does not exist.
     @endif
@@ -78,27 +82,28 @@
 @section('pivot-javascript')
     <script>
         <?php
-            foreach ($extraOptions->with_pivot as $option) {
-                if (isset($option->data)) {
-                    $pivotData = "<label class='pivot-name'>{$option->pivot_name}</label>";
-                    $pivotData .= "<select class='form-control with-pivot-relationship-value' name='{$relationshipField}_{$option->column}_values[]'>";
-                    foreach ($option->data as $key => $selectOption) {
-                        $pivotData .= "<option value='{$key}'>{$selectOption}</option>";
+            $html = '';
+            foreach ($extraOptions->with_pivot as $key => $pivotOption) {
+                if (isset($pivotOption->data)) {
+                    $html .= "<label class='pivot-name'>{$pivotOption->pivot_name}</label>";
+
+                    $html .= "<select class='form-control with-pivot-relationship-value' name='{$relationshipField}_{$pivotOption->column}_values[]'>";
+                    foreach ($pivotOption->data as $key => $selectOption) {
+                        $html .= "<option value='{$key}'>{$selectOption}</option>";
                     }
-                    $pivotData .= "</select>";
-                    ?>
-                        var {{ $relationshipField }} = "<?=$pivotData?>";
-                    <?php
+                    $html .= "</select>";
+                } else if ($pivotOption->pivot_field_type == "text") {
+                    $html .= "<input class='form-control with-pivot-relationship-value' name='{$relationshipField}_{$pivotOption->column}_values[]' type='text' placeholder='{$pivotOption->column} Value'>";
                 }
             }
         ?>
 
+        var {{ $relationshipField }} = "<?=$html?>";
+
         $('document').ready(function () {
-            $('.select-relationship-with-pivot').val('');
-            $('.select-relationship-with-pivot').on('change', function (e) {
+            $('.select-relationship-with-pivot[data-relationship-field={{$relationshipField}}]').val('');
+            $('.select-relationship-with-pivot[data-relationship-field={{$relationshipField}}]').on('change', function (e) {
                 var relationshipName = $(this).attr('data-relationship-field');
-                var pivotColumn = $(this).attr('data-pivot-column');
-                var pivotFieldType = $(this).attr('data-pivot-field-type');
 
                 var value = $(this).val();
                 var name = $(this).find(':selected').html();
@@ -109,24 +114,17 @@
                 var html = '<div class="selected-relationship" data-relationship-value="' + value + '">';
                 html += '<span>' + name + '</span>';
                 html += '<input type="text" value="' + value + '" name="' + relationshipName + '_ids[]" hidden>';
-
-                if (pivotFieldType == "text") {
-                    html += '<input class="form-control with-pivot-relationship-value" name="' + relationshipName + '_' + pivotColumn + '_values[]" type="text" placeholder="Column Value">';
-                } else if (pivotFieldType == "dropdown") {
-                    console.log(window[relationshipName]);
-                    html += window[relationshipName];
-                }
-
+                html += window[relationshipName];
                 html += '<span class="remove-relationship">Remove</span>'
                 html += '</div>';
 
 
-                $('.selected-relationship-with-pivot-container').append(html);
+                $('.selected-relationship-with-pivot-container[data-relationship-field={{$relationshipField}}]').append(html);
             });
 
             $('body').on('click', '.remove-relationship', function () {
                 var optionValue = $(this).closest('.selected-relationship').attr('data-relationship-value');
-                $('.select-relationship-with-pivot').find('option[value=' + optionValue + ']').toggle();
+                $('.select-relationship-with-pivot[data-relationship-field={{$relationshipField}}]').find('option[value=' + optionValue + ']').toggle();
 
                 if (confirm('Are you sure you want to remove this relationship?')) {
                     $(this).closest('.selected-relationship').remove();
