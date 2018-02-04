@@ -138,46 +138,8 @@
 	            @endif
 
 			@else
-				@if (isset($options->extra_options))
-					@php
-						$extraOptions = json_decode($options->extra_options);
-						$columns = [];
-
-						foreach ($extraOptions->with_pivot as $option) {
-							$columns[] = $option->column;
-						}
-
-						$selected_values = isset($dataTypeContent) ? $dataTypeContent->belongsToMany($options->model, $options->pivot_table)->withPivot(implode(", ", $columns))->getResults() : array();
-						$relationshipOptions = app($options->model)->all();
-						$extraOptions = json_decode($options->extra_options);
-					@endphp
-
-					<select class="form-control select3" name="{{ $relationshipField }}[]" multiple>
-						@foreach($relationshipOptions as $relationshipOption)
-							@if(!in_array($relationshipOption->{$options->key}, $selected_values))
-								<option value="{{ $relationshipOption->{$options->key} }}">{{ $relationshipOption->{$options->label} }}</option>
-							@endif
-						@endforeach
-					</select>
-
-					{{--@if (isset($extraOptions->with_pivot))--}}
-						{{--@foreach($extraOptions->with_pivot as $withPivot)--}}
-							{{--@if ($withPivot->field->type == "dropdown")--}}
-								{{--<?php $selected_value = (isset($dataTypeContent->{$row->field}) && !is_null(old($row->field, $dataTypeContent->{$row->field}))) ? old($row->field, $dataTypeContent->{$row->field}) : old($row->field); ?>--}}
-								{{--<select class="form-control select2" name="{{ $relationshipField }}_with_pivot_{{ $withPivot->column }}">--}}
-									{{--<?php $default = (isset($withPivot->field->default) && !isset($dataTypeContent->{$row->field})) ? $withPivot->field->default : null; ?>--}}
-									{{--@if(isset($withPivot->field->options))--}}
-										{{--@foreach($withPivot->field->options as $key => $option)--}}
-											{{--<option value="{{ $key }}" @if($default == $key && $selected_value === NULL){{ 'selected="selected"' }}@endif @if($selected_value == $key){{ 'selected="selected"' }}@endif>{{ $option }}</option>--}}
-										{{--@endforeach--}}
-									{{--@endif--}}
-								{{--</select>--}}
-							{{--@endif--}}
-						{{--@endforeach--}}
-					{{--@endif--}}
-				@else
+				@if (!isset($options->extra_options))
 					<select class="form-control select2" name="{{ $relationshipField }}[]" multiple>
-
 						@php
 						$selected_values = isset($dataTypeContent) ? $dataTypeContent->belongsToMany($options->model, $options->pivot_table)->pluck($options->key)->all() : array();
 						$relationshipOptions = app($options->model)->all();
@@ -186,7 +148,6 @@
 						@foreach($relationshipOptions as $relationshipOption)
 							<option value="{{ $relationshipOption->{$options->key} }}" @if(in_array($relationshipOption->{$options->key}, $selected_values)){{ 'selected="selected"' }}@endif>{{ $relationshipOption->{$options->label} }}</option>
 						@endforeach
-
 					</select>
 				@endif
 			@endif

@@ -157,8 +157,10 @@
                                             {{ $row->slugify }}
                                             <label for="name">{{ $row->display_name }}</label>
                                             @include('voyager::multilingual.input-hidden-bread-edit-add')
-                                            @if($row->type == 'relationship')
+                                            @if($row->type == 'relationship' && $options->extra_options === null)
                                                 @include('voyager::formfields.relationship')
+                                            @elseif ($row->type == 'relationship' && $options->extra_options !== null)
+                                                @include('voyager::formfields.custom.with-pivot-relationship')
                                             @else
                                                 {!! app('voyager')->formField($row, $dataType, $dataTypeContent) !!}
                                             @endif
@@ -287,13 +289,14 @@
 @stop
 
 @section('javascript')
+    @yield('pivot-javascript')
     <script>
         $('document').ready(function () {
             $('#slug').slugify();
 
-        @if ($isModelTranslatable)
-            $('.side-body').multilingual({"editing": true});
-        @endif
+            @if ($isModelTranslatable)
+                $('.side-body').multilingual({"editing": true});
+            @endif
         });
     </script>
 @stop
